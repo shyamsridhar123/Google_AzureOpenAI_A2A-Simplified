@@ -1,21 +1,18 @@
-import os
-import json
-import uuid
-import logging
-from typing import Dict, List, Optional, Any, Union
-from fastapi import FastAPI, Request, Response, HTTPException
-from fastapi.responses import JSONResponse, StreamingResponse
-from fastapi.middleware.cors import CORSMiddleware
-import uvicorn
 import asyncio
+import json
+import logging
+import uuid
 from datetime import datetime
-from pydantic import BaseModel, Field
+from typing import Any, Dict, List, Optional, Union
+
+import uvicorn
+from fastapi import FastAPI, HTTPException, Request
+from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse, StreamingResponse
+from pydantic import BaseModel
 
 from agents.base_agent import BaseAgent
-from schemas.base import (
-    Task, TaskState, TaskStatus, Message, MessageRole,
-    AgentCard, TextPart
-)
+from schemas.base import AgentCard, Message, MessageRole, Task, TaskState, TaskStatus, TextPart
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
@@ -42,7 +39,7 @@ tasks: Dict[str, Task] = {}
 task_subscribers: Dict[str, List[asyncio.Queue]] = {}
 
 # Helper function to handle serialization with different Pydantic versions
-def serialize_model(model):
+def serialize_model(model: Any) -> Dict[str, Any]:
     """Serialize a Pydantic model to dict, compatible with both v1 and v2"""
     if hasattr(model, "model_dump"):  # Pydantic v2
         return model.model_dump()
@@ -105,7 +102,7 @@ async def get_agent_card(agent_id: Optional[str] = None) -> AgentCard:
         raise HTTPException(status_code=404, detail=f"Agent {agent_id} not found")
     else:
         agent = agents[agent_id]
-    
+
     return agent.get_agent_card()
 
 # Route to send a task without streaming
@@ -113,7 +110,7 @@ async def get_agent_card(agent_id: Optional[str] = None) -> AgentCard:
 async def jsonrpc_endpoint(request: JSONRPCRequest) -> JSONRPCResponse:
     """Handle JSON-RPC requests according to the A2A protocol"""
     method = request.method
-    
+
     try:
         if method == "tasks/send":
             return await handle_send_task(request)
@@ -146,7 +143,7 @@ async def jsonrpc_endpoint(request: JSONRPCRequest) -> JSONRPCResponse:
 async def handle_send_task(request: JSONRPCRequest) -> JSONRPCResponse:
     """Handle tasks/send method"""
     params = request.params
-    
+
     # Get agent - for demo purposes, use the first registered agent
     if not agents:
         return JSONRPCResponse(
@@ -158,16 +155,16 @@ async def handle_send_task(request: JSONRPCRequest) -> JSONRPCResponse:
                 "data": None
             }
         )
-    
+
     agent = next(iter(agents.values()))
-    
+
     # Check if this is a new task or an update to an existing task
     task_id = params.id
-    
+
     if task_id in tasks:
         # Existing task - update it
         task = tasks[task_id]
-        
+
         # Update the task status if it's in input-required state
         if task.status.state == TaskState.INPUT_REQUIRED:
             # Process the new message
@@ -197,11 +194,11 @@ async def handle_send_task(request: JSONRPCRequest) -> JSONRPCResponse:
             ),
             metadata=params.metadata or {}
         )
-        
+
         # Process the task
         task = agent.process_task(task)
         tasks[task_id] = task
-    
+
     return JSONRPCResponse(
         jsonrpc="2.0",
         id=request.id,
@@ -212,7 +209,7 @@ async def handle_get_task(request: JSONRPCRequest) -> JSONRPCResponse:
     """Handle tasks/get method"""
     params = request.params
     task_id = params.id
-    
+
     if task_id not in tasks:
         return JSONRPCResponse(
             jsonrpc="2.0",
@@ -223,7 +220,7 @@ async def handle_get_task(request: JSONRPCRequest) -> JSONRPCResponse:
                 "data": None
             }
         )
-    
+
     return JSONRPCResponse(
         jsonrpc="2.0",
         id=request.id,
@@ -234,7 +231,7 @@ async def handle_cancel_task(request: JSONRPCRequest) -> JSONRPCResponse:
     """Handle tasks/cancel method"""
     params = request.params
     task_id = params.id
-    
+
     if task_id not in tasks:
         return JSONRPCResponse(
             jsonrpc="2.0",
@@ -245,9 +242,9 @@ async def handle_cancel_task(request: JSONRPCRequest) -> JSONRPCResponse:
                 "data": None
             }
         )
-    
+
     task = tasks[task_id]
-    
+
     # Only tasks in certain states can be canceled
     if task.status.state not in [TaskState.SUBMITTED, TaskState.WORKING, TaskState.INPUT_REQUIRED]:
         return JSONRPCResponse(
@@ -259,20 +256,20 @@ async def handle_cancel_task(request: JSONRPCRequest) -> JSONRPCResponse:
                 "data": None
             }
         )
-    
+
     # Get the agent that owns this task
     agent_id = next(iter(agents.keys()))  # For demo purposes, use first agent
     agent = agents[agent_id]
-    
+
     # Update the task status
     cancel_message = Message(
         role=MessageRole.AGENT,
         parts=[TextPart(text="Task canceled by request")]
     )
-    
+
     task = agent.update_task_status(task_id, TaskState.CANCELED, message=cancel_message)
     tasks[task_id] = task
-    
+
     return JSONRPCResponse(
         jsonrpc="2.0",
         id=request.id,
@@ -286,7 +283,7 @@ async def stream_endpoint(request: Request) -> StreamingResponse:
     try:
         data = await request.json()
         jsonrpc_request = JSONRPCRequest(**data)
-        
+
         if jsonrpc_request.method == "tasks/sendSubscribe":
             return await handle_send_subscribe(jsonrpc_request)
         elif jsonrpc_request.method == "tasks/resubscribe":
@@ -319,10 +316,10 @@ async def stream_endpoint(request: Request) -> StreamingResponse:
 async def handle_send_subscribe(request: JSONRPCRequest) -> StreamingResponse:
     """Handle tasks/sendSubscribe method"""
     params = request.params
-    
+
     # Create a queue for this subscription
     queue = asyncio.Queue()
-    
+
     # Same logic as handle_send_task but with streaming
     if not agents:
         response = JSONRPCResponse(
@@ -336,18 +333,18 @@ async def handle_send_subscribe(request: JSONRPCRequest) -> StreamingResponse:
         )
         await queue.put(f"data: {json.dumps(serialize_model(response))}\n\n")
         return StreamingResponse(stream_generator(queue), media_type="text/event-stream")
-    
+
     agent = next(iter(agents.values()))
     task_id = params.id
-    
+
     # Add this queue to the subscribers for this task
     if task_id not in task_subscribers:
         task_subscribers[task_id] = []
     task_subscribers[task_id].append(queue)
-    
+
     # Create task processing coroutine
     asyncio.create_task(process_task_async(agent, params, task_id, request.id))
-    
+
     return StreamingResponse(stream_generator(queue), media_type="text/event-stream")
 
 async def process_task_async(agent, params, task_id, request_id):
@@ -356,14 +353,14 @@ async def process_task_async(agent, params, task_id, request_id):
         if task_id in tasks:
             # Existing task - update it
             task = tasks[task_id]
-            
+
             # Update the task status if it's in input-required state
             if task.status.state == TaskState.INPUT_REQUIRED:
                 # Process the new message
                 task.status.message = params.message
                 task = agent.process_task(task)
                 tasks[task_id] = task
-                
+
                 # Notify subscribers
                 await notify_task_update(task_id, task, request_id)
             else:
@@ -390,15 +387,15 @@ async def process_task_async(agent, params, task_id, request_id):
                 ),
                 metadata=params.metadata or {}
             )
-            
+
             # Send initial update
             tasks[task_id] = task
             await notify_task_update(task_id, task, request_id)
-            
+
             # Process the task
             task = agent.process_task(task)
             tasks[task_id] = task
-            
+
             # Notify subscribers of the final state
             await notify_task_update(task_id, task, request_id)
     except Exception as e:
@@ -418,10 +415,10 @@ async def handle_resubscribe(request: JSONRPCRequest) -> StreamingResponse:
     """Handle tasks/resubscribe method"""
     params = request.params
     task_id = params.id
-    
+
     # Create a queue for this subscription
     queue = asyncio.Queue()
-    
+
     if task_id not in tasks:
         response = JSONRPCResponse(
             jsonrpc="2.0",
@@ -434,12 +431,12 @@ async def handle_resubscribe(request: JSONRPCRequest) -> StreamingResponse:
         )
         await queue.put(f"data: {json.dumps(serialize_model(response))}\n\n")
         return StreamingResponse(stream_generator(queue), media_type="text/event-stream")
-    
+
     # Add this queue to the subscribers for this task
     if task_id not in task_subscribers:
         task_subscribers[task_id] = []
     task_subscribers[task_id].append(queue)
-    
+
     # Send the current state immediately
     task = tasks[task_id]
     response = JSONRPCResponse(
@@ -452,14 +449,14 @@ async def handle_resubscribe(request: JSONRPCRequest) -> StreamingResponse:
         }
     )
     await queue.put(f"data: {json.dumps(serialize_model(response))}\n\n")
-    
+
     return StreamingResponse(stream_generator(queue), media_type="text/event-stream")
 
 async def notify_task_update(task_id: str, task: Task, request_id: Optional[Union[int, str]] = None):
     """Notify all subscribers of a task update"""
     if task_id not in task_subscribers:
         return
-    
+
     response = JSONRPCResponse(
         jsonrpc="2.0",
         id=request_id,
@@ -469,10 +466,10 @@ async def notify_task_update(task_id: str, task: Task, request_id: Optional[Unio
             "final": task.status.state in [TaskState.COMPLETED, TaskState.FAILED, TaskState.CANCELED]
         }
     )
-    
+
     # Use the serialize_model helper function to handle different Pydantic versions
     response_str = json.dumps(serialize_model(response))
-    
+
     for queue in task_subscribers[task_id]:
         await queue.put(f"data: {response_str}\n\n")
 
@@ -480,10 +477,10 @@ async def notify_error(task_id: str, error_response: JSONRPCResponse):
     """Notify all subscribers of an error"""
     if task_id not in task_subscribers:
         return
-    
+
     # Use the serialize_model helper function
     response_str = json.dumps(serialize_model(error_response))
-    
+
     for queue in task_subscribers[task_id]:
         await queue.put(f"data: {response_str}\n\n")
         # Close the stream after error
@@ -501,7 +498,7 @@ async def stream_generator(queue):
         # Client disconnected
         pass
 
-def start_server(host: str = "0.0.0.0", port: int = 8000):
+def start_server(host: str = "0.0.0.0", port: int = 8000) -> None:
     """Start the A2A protocol server"""
     uvicorn.run(app, host=host, port=port)
 
