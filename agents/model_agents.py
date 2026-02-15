@@ -98,8 +98,6 @@ class GPT45Agent(BaseAgent):
 
     def generate_response(self, message: Message) -> Message:
         """Generate a response using the GPT-4.5 model (legacy format)."""
-        self._format_prompt_from_message(message)
-
         # Convert conversation history to OpenAI format
         messages = [
             {"role": "system", "content": f"You are {self.name}, {self.description}. Follow the Agent-to-Agent protocol when communicating."}
@@ -128,7 +126,11 @@ class GPT45Agent(BaseAgent):
         )
 
     def _format_prompt_from_message(self, message: Message) -> str:
-        """Format a prompt from a message for the GPT-4.5 model."""
+        """
+        Format a prompt from a message for the GPT-4.5 model.
+
+        Note: Currently unused but retained for potential future use or backwards compatibility.
+        """
         prompt_parts = []
 
         for content in message.content:
@@ -250,8 +252,6 @@ class GPTO3MiniAgent(BaseAgent):
 
     def generate_response(self, message: Message) -> Message:
         """Generate a response using the GPT-O3 Mini model (legacy format)."""
-        self._format_prompt_from_message(message)
-
         # Convert conversation history to OpenAI format
         messages = [
             {"role": "system", "content": f"You are {self.name}, {self.description}. Be concise and efficient in your responses."}
@@ -280,7 +280,11 @@ class GPTO3MiniAgent(BaseAgent):
         )
 
     def _format_prompt_from_message(self, message: Message) -> str:
-        """Format a prompt from a message for the GPT-O3 Mini model."""
+        """
+        Format a prompt from a message for the GPT-O3 Mini model.
+
+        Note: Currently unused but retained for potential future use or backwards compatibility.
+        """
         # Similar to the GPT-4.5 agent but simpler for efficiency
         for content in message.content:
             if content.type == ContentType.TEXT:
@@ -396,8 +400,6 @@ class GPT41Agent(BaseAgent):
 
     def generate_response(self, message: Message) -> Message:
         """Generate a response using the GPT-4.1 model (legacy format)."""
-        self._format_prompt_from_message(message)
-
         # Convert conversation history to OpenAI format
         messages = [
             {"role": "system", "content": f"You are {self.name}, {self.description}. Provide clear and concise responses."}
@@ -426,7 +428,11 @@ class GPT41Agent(BaseAgent):
         )
 
     def _format_prompt_from_message(self, message: Message) -> str:
-        """Format a prompt from a message for the GPT-4.1 model."""
+        """
+        Format a prompt from a message for the GPT-4.1 model.
+
+        Note: Currently unused but retained for potential future use or backwards compatibility.
+        """
         # Similar to the GPT-4.5 agent but simpler for efficiency
         for content in message.content:
             if content.type == ContentType.TEXT:
