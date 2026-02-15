@@ -1,7 +1,8 @@
-from typing import Dict, List, Optional, Any, Union
-from pydantic import BaseModel, Field
 from datetime import datetime
 from enum import Enum
+from typing import Any, Dict, List, Optional, Union
+
+from pydantic import BaseModel, Field
 
 
 class TaskState(str, Enum):

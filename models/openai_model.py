@@ -1,9 +1,10 @@
-import os
 import json
 import logging
+import os
 import sys
 import traceback
-from typing import Dict, List, Optional, Any, Union
+from typing import Any, Dict, List
+
 from dotenv import load_dotenv
 
 # Configure logging with more detailed format
@@ -15,8 +16,8 @@ logger = logging.getLogger(__name__)
 
 # Import OpenAI client classes with proper error handling
 try:
-    from openai import OpenAI, AzureOpenAI
     import openai
+    from openai import AzureOpenAI, OpenAI
     logger.debug(f"Successfully imported OpenAI module version: {openai.__version__}")
     OPENAI_AVAILABLE = True
 except ImportError as e:
@@ -55,11 +56,11 @@ class MockChatCompletions:
             if m.get("content"):
                 last_message = m.get("content")
                 break
-        
+
         # Generate predefined responses based on content keywords
         if last_message and ("Agent-to-Agent Protocol" in last_message or "A2A" in last_message):
             response = """
-The Agent-to-Agent (A2A) Protocol is a standardized communication framework enabling AI agents to interact effectively. 
+The Agent-to-Agent (A2A) Protocol is a standardized communication framework enabling AI agents to interact effectively.
 
 Key components include:
 1. Message structure with sender/recipient information
@@ -96,7 +97,7 @@ Would you like me to elaborate on any specific aspect?
             response = f"This is a mock response for demonstration purposes. I received: {last_message[:100]}..."
         else:
             response = "This is a default mock response for demonstration purposes."
-            
+
         return MockCompletionResult(response.strip())
 
 
@@ -111,45 +112,45 @@ class MockOpenAIClient:
 
 class OpenAIModel:
     """Base class for OpenAI model wrappers"""
-    
+
     def __init__(self, model_name: str, config_prefix: str = None):
         """
         Initialize the model with specific configurations.
-        
+
         Args:
             model_name: The name of the model to use
             config_prefix: The prefix for environment variables (e.g., "GPT45" or "O3_MINI")
         """
         # Make sure to load environment variables from .env file
         load_dotenv()
-        
+
         self.model_name = model_name
         self.use_mock = False
-        
+
         # Log environment information for debugging
         logger.debug(f"Python version: {sys.version}")
         if OPENAI_AVAILABLE:
             logger.debug(f"OpenAI SDK version: {openai.__version__}")
-        
+
         # Skip real API initialization if OpenAI is not available
         if not OPENAI_AVAILABLE:
             self.client = MockOpenAIClient()
             self.use_mock = True
             logger.info(f"Using mock OpenAI model for {model_name}")
             return
-        
+
         # Handle proxy environment variables which may cause issues with OpenAI 1.7.2
         proxy_vars = {}
         for var in ["http_proxy", "https_proxy", "HTTP_PROXY", "HTTPS_PROXY"]:
             if var in os.environ:
                 proxy_vars[var] = os.environ.pop(var)
                 logger.debug(f"Temporarily removed proxy environment variable: {var}")
-                
+
         # Try to use actual OpenAI API with new client classes
         try:
             # Set up Azure OpenAI if configured
             use_azure = os.getenv("USE_AZURE_OPENAI", "false").lower() == "true"
-            
+
             if use_azure:
                 # Get Azure OpenAI configuration
                 if config_prefix:
@@ -158,17 +159,17 @@ class OpenAIModel:
                     self.deployment = os.getenv(f"AZURE_OPENAI_DEPLOYMENT_{config_prefix}", model_name)
                 else:
                     endpoint = os.getenv("AZURE_OPENAI_ENDPOINT", "")
-                    api_key = os.getenv("AZURE_OPENAI_KEY", "") 
+                    api_key = os.getenv("AZURE_OPENAI_KEY", "")
                     self.deployment = os.getenv("AZURE_OPENAI_DEPLOYMENT", model_name)
-                
+
                 api_version = os.getenv("AZURE_OPENAI_API_VERSION", "2024-02-15-preview")
-                
+
                 # Check if configuration is valid
                 if not endpoint or not api_key:
                     raise ValueError(f"Azure OpenAI configuration is incomplete: endpoint={endpoint != ''}, api_key={api_key != ''}")
-                
+
                 logger.debug(f"Initializing Azure OpenAI client with endpoint: {endpoint}, api_version: {api_version}")
-                
+
                 # Create Azure OpenAI client with OpenAI SDK 1.7.2 compatible initialization
                 try:
                     # Initialize with only the required parameters for version 1.7.2
@@ -196,18 +197,18 @@ class OpenAIModel:
                 except Exception as e:
                     logger.error(f"Failed to initialize Azure OpenAI client: {str(e)}")
                     raise
-                
+
                 logger.info(f"Using Azure OpenAI for {model_name} with deployment {self.deployment}")
                 self.use_azure = True
             else:
                 # Standard OpenAI configuration
                 api_key = os.getenv("OPENAI_API_KEY", "")
-                
+
                 if not api_key:
                     raise ValueError("OpenAI API key not found")
-                
+
                 logger.debug("Initializing standard OpenAI client")
-                
+
                 # Create OpenAI client with just the essential parameter
                 try:
                     # Initialize with only the required parameter for version 1.7.2
@@ -216,10 +217,10 @@ class OpenAIModel:
                 except Exception as e:
                     logger.error(f"Failed to initialize standard OpenAI client: {str(e)}")
                     raise
-                
+
                 logger.info(f"Using standard OpenAI for {model_name}")
                 self.use_azure = False
-            
+
             # Test the client with a simple request
             logger.debug("Testing OpenAI client with a simple request...")
             try:
@@ -228,37 +229,37 @@ class OpenAIModel:
                     model_id = self.deployment
                 else:
                     model_id = self.model_name
-                
+
                 # Log successful client initialization
                 logger.debug(f"Initialized client successfully with model: {model_id}")
-                
+
             except Exception as test_err:
                 logger.warning(f"Client test failed: {str(test_err)}")
-            
+
         except Exception as e:
             logger.error("Error initializing OpenAI client:")
             logger.error(f"Error type: {type(e).__name__}")
             logger.error(f"Error message: {str(e)}")
             logger.error(f"Traceback: {traceback.format_exc()}")
-            
+
             # Fall back to mock implementation
             self.client = MockOpenAIClient()
             self.use_mock = True
             logger.info(f"Using mock OpenAI model for {model_name}")
-        
+
         # Restore proxy environment variables
         for var, value in proxy_vars.items():
             os.environ[var] = value
-    
+
     def generate_text(self, messages: List[Dict[str, str]], temperature: float = 0.7, max_tokens: int = 500) -> str:
         """
         Generate text using the OpenAI model.
-        
+
         Args:
             messages: List of message dictionaries with "role" and "content" keys
             temperature: Controls randomness (0-1)
             max_tokens: Maximum number of tokens to generate
-            
+
         Returns:
             The generated text response
         """
@@ -278,11 +279,11 @@ class OpenAIModel:
                 completion_kwargs = {
                     "messages": messages,
                 }
-                
+
                 # Handle parameter compatibility for specific models
                 is_o3_mini = (hasattr(self, 'model_name') and self.model_name == "gpt-35-turbo") or \
                             (hasattr(self, 'deployment') and self.deployment == "o3-mini")
-                            
+
                 # Handle max_tokens parameter compatibility
                 if is_o3_mini:
                     # For GPT-4o-mini (gpt-35-turbo), use max_completion_tokens
@@ -293,33 +294,33 @@ class OpenAIModel:
                     # For other models, use regular parameters
                     completion_kwargs["max_tokens"] = max_tokens
                     completion_kwargs["temperature"] = temperature
-                
+
                 # For Azure, use deployment name as the model
                 if self.use_azure:
                     completion_kwargs["model"] = self.deployment
                 else:
                     completion_kwargs["model"] = self.model_name
-                
+
                 response = self.client.chat.completions.create(**completion_kwargs)
                 return response.choices[0].message.content
         except Exception as e:
             logger.error(f"Error generating text: {str(e)}")
             return f"Error: {str(e)}"
-    
+
     def generate_with_function_calling(
-        self, 
-        messages: List[Dict[str, str]], 
-        functions: List[Dict[str, Any]], 
+        self,
+        messages: List[Dict[str, str]],
+        functions: List[Dict[str, Any]],
         temperature: float = 0.7
     ) -> Dict[str, Any]:
         """
         Generate text with function calling capability.
-        
+
         Args:
             messages: List of message dictionaries
             functions: List of function definitions
             temperature: Controls randomness (0-1)
-            
+
         Returns:
             Dict containing the response or function call
         """
@@ -347,7 +348,7 @@ class OpenAIModel:
                             "parameters": func.get("parameters", {})
                         }
                     })
-                
+
                 # Only pass parameters that are explicitly supported
                 completion_kwargs = {
                     "messages": messages,
@@ -355,15 +356,15 @@ class OpenAIModel:
                     "tools": tools,
                     "tool_choice": "auto"
                 }
-                
+
                 # For Azure, use deployment name as the model
                 if self.use_azure:
                     completion_kwargs["model"] = self.deployment
                 else:
                     completion_kwargs["model"] = self.model_name
-                
+
                 response = self.client.chat.completions.create(**completion_kwargs)
-                
+
                 # Check if the model decided to call a function
                 if response.choices[0].message.tool_calls:
                     tool_call = response.choices[0].message.tool_calls[0]

@@ -1,5 +1,6 @@
 # 🤝 Agent-to-Agent (A2A) Protocol Demo
 
+[![CI](https://github.com/shyamsridhar123/Google_AzureOpenAI_A2A-Simplified/actions/workflows/ci.yml/badge.svg)](https://github.com/shyamsridhar123/Google_AzureOpenAI_A2A-Simplified/actions/workflows/ci.yml)
 [![Protocol](https://img.shields.io/badge/Protocol-Google_A2A-4285F4)](https://github.com/google/A2A)
 [![Models](https://img.shields.io/badge/Models-Azure_OpenAI-0078D4)](https://learn.microsoft.com/en-us/azure/ai-services/openai/)
 [![License](https://img.shields.io/badge/License-MIT-green)](LICENSE)
